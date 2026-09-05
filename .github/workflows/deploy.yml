@@ -42,16 +42,23 @@ jobs:
           token: ${{ secrets.HOMELAB_REPO_TOKEN }}
           path: homelab
 
+      # Path is apps/<app>/app.yaml since homelab commit 45bec0a renamed
+      # <app>.yaml -> app.yaml. The grep guard turns a stale path or pattern
+      # into a loud failure instead of a silent no-op deploy.
       - name: Update image tag in homelab
         run: |
           cd homelab
-          sed -i "s|image: docker.io/lorenzolfm/lorenzosh:.*|image: docker.io/lorenzolfm/lorenzosh:${{ github.sha }}|" apps/lorenzosh/lorenzosh.yaml
+          manifest=apps/lorenzosh/app.yaml
+          grep -q "image: docker.io/lorenzolfm/lorenzosh:" "$manifest" \
+            || { echo "::error::no lorenzosh image line in $manifest - path or pattern is stale"; exit 1; }
+          sed -i "s|image: docker.io/lorenzolfm/lorenzosh:.*|image: docker.io/lorenzolfm/lorenzosh:${{ github.sha }}|" "$manifest"
 
       - name: Commit and push to homelab
         run: |
           cd homelab
+          git diff --quiet && { echo "image tag already up to date"; exit 0; }
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add apps/lorenzosh/lorenzosh.yaml
+          git add apps/lorenzosh/app.yaml
           git commit -m "Update lorenzosh image to ${{ github.sha }}"
           git push
